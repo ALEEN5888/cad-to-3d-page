@@ -61,3 +61,9 @@ STEP → OpenCASCADE 网格化 → 每零件独立材质上色
 - 每次重建的 HTML 都是全新的完整副本（没有增量），不适合反复提交进 git 历史；
   建议把成品放在 GitHub Releases 里，仓库只存源码和脚本。
 - 文件里就是模型本体，发给谁谁就能提取几何，敏感图纸请谨慎分发。
+
+## 许可
+
+本项目以 [MIT License](LICENSE) 发布。`vendor/model-viewer.min.js` 是
+Google 的 [model-viewer](https://github.com/google/model-viewer)，按 Apache-2.0
+授权，其许可声明保留在文件头部。
