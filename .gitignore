@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 转换过程中的临时文件
+*.part
+*.log
+
+# Windows 杂物
+Thumbs.db
+desktop.ini
+
+# 生成的三维网页成品：体积大且每次重建都不一样，
+# 建议发到 GitHub Releases，而不是提交进历史。
+*.html
+
+# 想连同一个成品一起提交时，用：git add -f 文件名.html
