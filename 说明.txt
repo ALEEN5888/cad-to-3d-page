@@ -138,6 +138,12 @@ CAD 转三维网页 —— 使用说明
   答：文件可能只有标注没有实体，或者模型太大内存不够。
       关掉 SolidWorks / 浏览器再试；还不行就在 SolidWorks 里重新导出。
 
+  问：日志里反复出现 "cascadio_xxx.bin.tmp' can not be created"。
+  答：临时目录路径里有中文（比如 C:\Users\梁子康\AppData\Local\Temp），
+      cascadio 在里面建不了临时文件。新版会自动改用纯英文的
+      C:\Users\Public\cad2web-tmp，不用管。如果手动改了 TEMP 变量，
+      记得也设成纯英文路径。
+
   问：对方打开是白屏。
   答：九成是文件没传完整（微信/邮件截断）。用网盘传原文件，或压缩成 zip。
 

@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,8 +26,47 @@ BREP_EXT = STEP_EXT | IGES_EXT
 MESH_EXT = {".stl", ".obj", ".ply", ".3mf", ".glb", ".gltf"}
 
 
+LOG_PATH = HERE / "转换日志.txt"
+
+
+def ensure_ascii_temp() -> None:
+    """cascadio/OpenCASCADE 在临时目录含中文时会失败：
+    "File C:\\Users\\张三\\AppData\\Local\\Temp\\cascadio_xxx.bin.tmp can not be created"。
+    这里把 TEMP 换到一个纯英文路径，其他逻辑都不受影响。"""
+    def usable(p: str) -> bool:
+        return bool(p) and p.isascii() and Path(p).is_dir()
+
+    if usable(os.environ.get("TEMP", "")) or usable(os.environ.get("TMP", "")):
+        return
+
+    for base in (os.environ.get("PUBLIC") or r"C:\Users\Public", r"C:\Windows\Temp"):
+        target = Path(base) / "cad2web-tmp"
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            probe = target / f".probe_{os.getpid()}"
+            probe.write_bytes(b"")
+            probe.unlink()
+        except OSError:
+            continue
+        os.environ["TEMP"] = os.environ["TMP"] = str(target)
+        tempfile.tempdir = str(target)
+        log(f"      TEMP 路径含中文，临时文件改用 {target}")
+        return
+
+
 def log(msg: str) -> None:
+    """同时打到控制台和 转换日志.txt —— 窗口关了也还能回看。"""
     print(msg, flush=True)
+    try:
+        if LOG_PATH.stat().st_size > 512_000:
+            LOG_PATH.unlink()
+    except OSError:
+        pass
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+    except OSError:
+        pass
 
 
 # 角度公差的上限（弧度）。再放粗圆柱面就只剩七八段，圆管会明显发棱，
@@ -95,6 +136,22 @@ def check_file_integrity(src: Path) -> None:
             "      请等导出完成，或重新导出一次再试。"
         )
 
+    # 只有曲线/点的 STEP 也能"转换成功"，但网页里只会显示成几根细线，
+    # 看起来就像"线条没画出来"。先在文件里数一下实体面。
+    text = src.read_text(encoding="utf-8", errors="ignore")
+    faces = len(re.findall(r"\b(?:ADVANCED_FACE|FACE_SURFACE)\s*\(", text))
+    surfaces = len(re.findall(r"\b(?:SHELL_BASED_SURFACE_MODEL|OPEN_SHELL)\s*\(", text))
+    curves = len(re.findall(r"\bGEOMETRIC_CURVE_SET\s*\(", text))
+    if faces == 0:
+        detail = "只有曲面" if surfaces else ("只有曲线/点" if curves else "没有任何面")
+        raise SystemExit(
+            f"[错误] {src.name} 里没有实体面（ADVANCED_FACE = 0），{detail}。\n"
+            "      这种文件转出来只会是几根细线，看起来像'线条太细'。\n"
+            "      在 SolidWorks 里重新导出：文件 → 另存为 → STEP → 选项里\n"
+            "      把'输出'设为 实体/曲面几何体（不要选'曲线'），再勾上'导出面/边线'。"
+        )
+    log(f"      STEP 实体面：{faces} 个")
+
 
 def convert_brep(src: Path, dst: Path, tol: float, ang: float) -> None:
     import cascadio
@@ -156,6 +213,10 @@ def main() -> None:
     ap.add_argument("--open", action="store_true", help="做完后自动用浏览器打开")
     args = ap.parse_args()
 
+    log("")
+    log(f"===== {time.strftime('%Y-%m-%d %H:%M:%S')}  {' '.join(sys.argv[1:])} =====")
+    ensure_ascii_temp()
+
     # 目标特别小时才允许把圆管压成多边形，否则一律保住圆柱面。
     ang_max = 0.8 if args.target_mb < 8 else ANG_MAX
 
@@ -176,15 +237,15 @@ def main() -> None:
     title = args.title or src.stem
     gltfpack = find_gltfpack()
 
-    if ext in BREP_EXT:
-        check_file_integrity(src)
-
     log("=" * 56)
     log(f"输入：{src}")
     log(f"体积：{src.stat().st_size / 1e6:.2f} MB")
     log(f"输出：{out}")
     log(f"压缩：{'gltfpack ' + gltfpack if gltfpack else '未找到 gltfpack，文件会偏大'}")
     log("=" * 56)
+
+    if ext in BREP_EXT:
+        check_file_integrity(src)
 
     tol, ang = args.tol_linear, args.tol_angular
     built: Path | None = None
