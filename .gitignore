@@ -5,6 +5,7 @@ __pycache__/
 # 转换过程中的临时文件
 *.part
 *.log
+转换日志.txt
 
 # Windows 杂物
 Thumbs.db
